@@ -1,0 +1,831 @@
+import { useState } from "react";
+
+/* ─── Google Fonts ─── */
+const fontLink = document.createElement("link");
+fontLink.rel = "stylesheet";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap";
+document.head.appendChild(fontLink);
+
+const BRANDS      = ["Federal","Winchester","Remington","Hornady","CCI","Lapua","Nosler","Sig Sauer","PMC","Custom Load"];
+const PROJECTILES = ["FMJ","HP","BTHP","SP","Match","Tracer","Frangible","Wadcutter","Semi-WC","Custom"];
+
+/* ─── Design tokens ─── */
+const T = {
+  bg:       "#0c0c0d",
+  surface:  "#131315",
+  card:     "#18181b",
+  border:   "#27272a",
+  gold:     "#c9a96e",
+  goldDim:  "#7a5c30",
+  goldGlow: "rgba(201,169,110,0.12)",
+  amber:    "#f59e0b",
+  amberDim: "rgba(245,158,11,0.12)",
+  red:      "#ef4444",
+  redDim:   "rgba(239,68,68,0.12)",
+  blue:     "#60a5fa",
+  green:    "#4ade80",
+  greenDim: "rgba(74,222,128,0.1)",
+  text:     "#e4e4e7",
+  textMid:  "#71717a",
+  textDim:  "#3f3f46",
+  mono:     "'JetBrains Mono', monospace",
+  display:  "'Bebas Neue', sans-serif",
+  body:     "'DM Sans', sans-serif",
+};
+
+const noiseBg = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E")`;
+
+/* ─── Primitives ─── */
+const Label = ({ children }) => (
+  <div style={{ fontFamily:T.mono, fontSize:10, fontWeight:600, letterSpacing:"0.14em", color:T.textMid, textTransform:"uppercase", marginBottom:8 }}>{children}</div>
+);
+
+const Input = ({ style, ...props }) => (
+  <input {...props}
+    style={{ width:"100%", background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:"13px 14px", color:T.text, fontSize:14, fontFamily:T.body, outline:"none", boxSizing:"border-box", transition:"border-color 0.15s", ...style }}
+    onFocus={e=>e.target.style.borderColor=T.goldDim}
+    onBlur={e=>e.target.style.borderColor=T.border}
+  />
+);
+
+const Textarea = ({ style, ...props }) => (
+  <textarea {...props}
+    style={{ width:"100%", background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:"13px 14px", color:T.text, fontSize:14, fontFamily:T.body, outline:"none", resize:"none", boxSizing:"border-box", transition:"border-color 0.15s", ...style }}
+    onFocus={e=>e.target.style.borderColor=T.goldDim}
+    onBlur={e=>e.target.style.borderColor=T.border}
+  />
+);
+
+const Chip = ({ label, active, onClick }) => (
+  <button onClick={onClick} style={{ padding:"7px 13px", borderRadius:8, cursor:"pointer", fontFamily:T.mono, fontSize:11, fontWeight:600, letterSpacing:"0.05em", border:active?`1px solid ${T.gold}`:`1px solid ${T.border}`, background:active?T.goldGlow:"transparent", color:active?T.gold:T.textMid, transition:"all 0.12s" }}>
+    {label}
+  </button>
+);
+
+const Divider = () => (
+  <div style={{ height:1, background:`linear-gradient(90deg,transparent,${T.border} 20%,${T.border} 80%,transparent)`, margin:"2px 0" }} />
+);
+
+const DetailRow = ({ label, value, accent }) => (
+  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"13px 18px" }}>
+    <span style={{ fontFamily:T.mono, fontSize:11, color:T.textMid, letterSpacing:"0.08em", textTransform:"uppercase" }}>{label}</span>
+    <span style={{ fontFamily:T.mono, fontSize:13, fontWeight:700, color:accent||T.text, letterSpacing:"0.04em", textAlign:"right", maxWidth:"60%", wordBreak:"break-word" }}>{value}</span>
+  </div>
+);
+
+const Crosshair = ({ size=120, opacity=0.04 }) => (
+  <svg width={size} height={size} viewBox="0 0 120 120" fill="none" style={{ position:"absolute", opacity }}>
+    <circle cx="60" cy="60" r="58" stroke="#c9a96e" strokeWidth="1"/>
+    <circle cx="60" cy="60" r="30" stroke="#c9a96e" strokeWidth="0.6"/>
+    <circle cx="60" cy="60" r="4"  stroke="#c9a96e" strokeWidth="1"/>
+    <line x1="0"  y1="60" x2="46"  y2="60"  stroke="#c9a96e" strokeWidth="0.8"/>
+    <line x1="74" y1="60" x2="120" y2="60"  stroke="#c9a96e" strokeWidth="0.8"/>
+    <line x1="60" y1="0"  x2="60"  y2="46"  stroke="#c9a96e" strokeWidth="0.8"/>
+    <line x1="60" y1="74" x2="60"  y2="120" stroke="#c9a96e" strokeWidth="0.8"/>
+    <line x1="20"  y1="20"  x2="27" y2="27"  stroke="#c9a96e" strokeWidth="0.5"/>
+    <line x1="100" y1="20"  x2="93" y2="27"  stroke="#c9a96e" strokeWidth="0.5"/>
+    <line x1="20"  y1="100" x2="27" y2="93"  stroke="#c9a96e" strokeWidth="0.5"/>
+    <line x1="100" y1="100" x2="93" y2="93"  stroke="#c9a96e" strokeWidth="0.5"/>
+  </svg>
+);
+
+const SectionHeader = ({ children }) => (
+  <div style={{ display:"flex", alignItems:"center", gap:10, margin:"20px 22px 10px" }}>
+    <div style={{ width:2, height:14, background:`linear-gradient(180deg,${T.gold},transparent)` }} />
+    <span style={{ fontFamily:T.mono, fontSize:10, fontWeight:600, letterSpacing:"0.18em", color:T.goldDim, textTransform:"uppercase" }}>{children}</span>
+  </div>
+);
+
+/* ─── MOA Sparkline ─── */
+const MoaSparkline = ({ entries, threshold, width=280, height=52 }) => {
+  const moas = entries.map(e => e.moa).filter(m => m != null);
+  if (moas.length < 2) return null;
+  const min = Math.min(...moas, 0);
+  const max = Math.max(...moas, threshold || 0) * 1.15;
+  const range = max - min || 1;
+  const pts = moas.map((m, i) => {
+    const x = (i / (moas.length - 1)) * width;
+    const y = height - ((m - min) / range) * height;
+    return `${x},${y}`;
+  }).join(" ");
+  const thY = threshold ? height - ((threshold - min) / range) * height : null;
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow:"visible" }}>
+      {thY != null && (
+        <>
+          <line x1="0" y1={thY} x2={width} y2={thY} stroke={T.red} strokeWidth="1" strokeDasharray="4,3" opacity="0.5" />
+          <text x={width - 2} y={thY - 4} fill={T.red} fontSize="8" fontFamily={T.mono} textAnchor="end" opacity="0.7">THRESHOLD</text>
+        </>
+      )}
+      <polyline points={pts} fill="none" stroke={T.gold} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity="0.8" />
+      {moas.map((m, i) => {
+        const x = (i / (moas.length - 1)) * width;
+        const y = height - ((m - min) / range) * height;
+        const over = threshold && m > threshold;
+        return <circle key={i} cx={x} cy={y} r="3" fill={over ? T.red : T.gold} />;
+      })}
+    </svg>
+  );
+};
+
+/* ─── MOA badge ─── */
+const MoaBadge = ({ moa, threshold }) => {
+  if (moa == null) return null;
+  const over = threshold && moa > threshold;
+  return (
+    <div style={{ display:"inline-flex", alignItems:"center", gap:5, background: over ? T.redDim : T.greenDim, border:`1px solid ${over ? "rgba(239,68,68,0.35)" : "rgba(74,222,128,0.3)"}`, borderRadius:6, padding:"3px 8px" }}>
+      <span style={{ fontFamily:T.mono, fontSize:11, fontWeight:700, color: over ? T.red : T.green, letterSpacing:"0.06em" }}>{moa} MOA</span>
+      {over && <span style={{ fontSize:10 }}>⚠</span>}
+    </div>
+  );
+};
+
+/* ═══════════ EMPTY FORMS ═══════════ */
+const EMPTY_RIFLE   = { name:"", serial:"", caliber:"", cleanInterval:"", moaThreshold:"" };
+const EMPTY_SESSION = { brand:"", projectile:"", factorySpec:"", shots:"", conditions:"", environmentals:"" };
+
+/* ═══════════ APP ═══════════════════ */
+export default function App() {
+  /*
+    rifles:   [ { id, name, serial, caliber, cleanInterval, moaThreshold,
+                  roundsSinceClean, created, cleanHistory,
+                  sessions: [ { id, brand, projectile, factorySpec, shots,
+                                conditions, environmentals, created,
+                                rangeEntries: [ { date, count, runningTotal, moa } ] } ] } ]
+  */
+  const [rifles, setRifles]                       = useState([]);
+  const [view, setView]                           = useState("rifles");
+  const [selectedRifleId, setSelectedRifleId]     = useState(null);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [rifleForm, setRifleForm]                 = useState(EMPTY_RIFLE);
+  const [sessionForm, setSessionForm]             = useState(EMPTY_SESSION);
+  const [addingEntry, setAddingEntry]             = useState(false);
+  const [entryShots, setEntryShots]               = useState("");
+  const [entryMoa, setEntryMoa]                   = useState("");
+  const [cleanDismissed, setCleanDismissed]       = useState({});
+  const [moaDismissed, setMoaDismissed]           = useState({});   // { rifleId: true }
+
+  /* ── derived ── */
+  const selectedRifle   = rifles.find(r => r.id === selectedRifleId);
+  const selectedSession = selectedRifle?.sessions.find(s => s.id === selectedSessionId);
+
+  const rifleTotalRounds  = (r) => r.sessions.reduce((a,s) => a + s.shots, 0);
+  const needsCleaning     = (r) => r.cleanInterval && r.roundsSinceClean >= r.cleanInterval && !cleanDismissed[r.id];
+  const cleanPct          = (r) => !r.cleanInterval ? 0 : Math.min((r.roundsSinceClean / r.cleanInterval) * 100, 100);
+
+  /* MOA helpers */
+  const allMoaEntries = (r) => r.sessions.flatMap(s => s.rangeEntries.filter(e => e.moa != null));
+  const latestMoa     = (r) => { const all = allMoaEntries(r); return all.length ? all[all.length-1].moa : null; };
+  const bestMoa       = (r) => { const all = allMoaEntries(r); return all.length ? Math.min(...all.map(e=>e.moa)) : null; };
+  const needsMoaWarn  = (r) => {
+    if (!r.moaThreshold || moaDismissed[r.id]) return false;
+    const last = latestMoa(r);
+    return last != null && last > r.moaThreshold;
+  };
+
+  /* ── rifle actions ── */
+  const createRifle = () => {
+    if (!rifleForm.name) return;
+    setRifles(prev => [{
+      id: Date.now(),
+      name: rifleForm.name,
+      serial: rifleForm.serial,
+      caliber: rifleForm.caliber,
+      cleanInterval: parseInt(rifleForm.cleanInterval) || null,
+      moaThreshold: parseFloat(rifleForm.moaThreshold) || null,
+      roundsSinceClean: 0,
+      created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
+      cleanHistory: [],
+      sessions: [],
+    }, ...prev]);
+    setRifleForm(EMPTY_RIFLE);
+    setView("rifles");
+  };
+
+  const deleteRifle = (id) => { setRifles(prev=>prev.filter(r=>r.id!==id)); setView("rifles"); };
+
+  const markCleaned = (rifleId) => {
+    setRifles(prev=>prev.map(r=>r.id!==rifleId?r:{
+      ...r, roundsSinceClean:0,
+      cleanHistory:[...r.cleanHistory,{
+        date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
+        atRound:rifleTotalRounds(r),
+      }],
+    }));
+    setCleanDismissed(prev=>({...prev,[rifleId]:true}));
+  };
+
+  /* ── session actions ── */
+  const createSession = () => {
+    if (!sessionForm.brand || !sessionForm.projectile) return;
+    const initialShots = parseInt(sessionForm.shots) || 0;
+    const newSession = {
+      id: Date.now(),
+      brand: sessionForm.brand,
+      projectile: sessionForm.projectile,
+      factorySpec: sessionForm.factorySpec,
+      shots: initialShots,
+      conditions: sessionForm.conditions,
+      environmentals: sessionForm.environmentals,
+      created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
+      rangeEntries: initialShots > 0 ? [{
+        date: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+        count: initialShots, runningTotal: initialShots, moa: null,
+      }] : [],
+    };
+    setRifles(prev=>prev.map(r=>r.id!==selectedRifleId?r:{
+      ...r,
+      roundsSinceClean: r.roundsSinceClean + initialShots,
+      sessions: [newSession, ...r.sessions],
+    }));
+    setCleanDismissed(prev=>({...prev,[selectedRifleId]:false}));
+    setSessionForm(EMPTY_SESSION);
+    setView("rifleDetail");
+  };
+
+  const deleteSession = (sessionId) => {
+    setRifles(prev=>prev.map(r=>r.id!==selectedRifleId?r:{
+      ...r, sessions:r.sessions.filter(s=>s.id!==sessionId),
+    }));
+    setView("rifleDetail");
+  };
+
+  const addRangeEntry = (rifleId, sessionId) => {
+    const n   = parseInt(entryShots);
+    const moa = entryMoa !== "" ? parseFloat(entryMoa) : null;
+    if (!n || n <= 0) return;
+    setRifles(prev=>prev.map(r=>{
+      if (r.id!==rifleId) return r;
+      return {
+        ...r,
+        roundsSinceClean: r.roundsSinceClean + n,
+        sessions: r.sessions.map(s=>{
+          if (s.id!==sessionId) return s;
+          return {
+            ...s,
+            shots: s.shots + n,
+            rangeEntries: [...s.rangeEntries, {
+              date: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+              count: n,
+              runningTotal: s.shots + n,
+              moa,
+            }],
+          };
+        }),
+      };
+    }));
+    setCleanDismissed(prev=>({...prev,[rifleId]:false}));
+    setMoaDismissed(prev=>({...prev,[rifleId]:false}));
+    setEntryShots(""); setEntryMoa(""); setAddingEntry(false);
+  };
+
+  /* ── nav helpers ── */
+  const goRifles        = ()    => { setView("rifles"); setSelectedRifleId(null); setSelectedSessionId(null); };
+  const goRifleDetail   = (id)  => { setSelectedRifleId(id); setSelectedSessionId(null); setView("rifleDetail"); setAddingEntry(false); };
+  const goSessionDetail = (sid) => { setSelectedSessionId(sid); setView("sessionDetail"); setAddingEntry(false); setEntryShots(""); setEntryMoa(""); };
+  const goNewRifle      = ()    => { setRifleForm(EMPTY_RIFLE); setView("newRifle"); };
+  const goNewSession    = ()    => { setSessionForm(EMPTY_SESSION); setView("newSession"); };
+
+  const BackBtn = ({ label, to }) => (
+    <button onClick={to} style={{ background:"transparent", border:`1px solid ${T.border}`, borderRadius:8, color:T.gold, fontSize:11, fontWeight:700, fontFamily:T.mono, letterSpacing:"0.1em", padding:"7px 14px", cursor:"pointer" }}>{label}</button>
+  );
+
+  /* ════════════════════════ RENDER ════════════════════════ */
+  return (
+    <div style={{ display:"flex", justifyContent:"center", alignItems:"center", minHeight:"100vh", background:"#060607", fontFamily:T.body }}>
+      <div style={{ width:390, minHeight:844, background:T.bg, borderRadius:52, border:"9px solid #1c1c1f", boxShadow:"0 0 0 1.5px #2a2a2e,0 60px 120px rgba(0,0,0,0.9),inset 0 1px 0 rgba(255,255,255,0.04)", overflow:"hidden", display:"flex", flexDirection:"column", position:"relative" }}>
+
+        <div style={{ position:"absolute", inset:0, backgroundImage:noiseBg, backgroundSize:"256px 256px", pointerEvents:"none", zIndex:0 }} />
+
+        {/* Status bar */}
+        <div style={{ position:"relative", zIndex:1, display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 28px 0", color:T.textMid, fontSize:11, fontFamily:T.mono, fontWeight:600, letterSpacing:"0.06em" }}>
+          <span>09:41</span>
+          <div style={{ width:110, height:28, background:T.bg, borderRadius:20, position:"absolute", left:"50%", transform:"translateX(-50%)", top:0 }} />
+          <span>▋▋▋▋ ⌁</span>
+        </div>
+
+        {/* Scroll content */}
+        <div style={{ position:"relative", zIndex:1, flex:1, overflowY:"auto", paddingBottom:36 }}>
+
+          {/* ╔══════════════════ RIFLES LIST ══════════════════╗ */}
+          {view === "rifles" && (
+            <div>
+              <div style={{ padding:"28px 22px 18px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+                  <div style={{ width:2, height:20, background:`linear-gradient(180deg,${T.gold},transparent)` }} />
+                  <span style={{ fontFamily:T.mono, fontSize:10, letterSpacing:"0.2em", color:T.goldDim, textTransform:"uppercase" }}>Ballistic Log · v3</span>
+                </div>
+                <div style={{ fontFamily:T.display, fontSize:46, color:T.text, lineHeight:1, letterSpacing:"0.04em" }}>RIFLES</div>
+                <div style={{ fontFamily:T.mono, fontSize:11, color:T.textMid, marginTop:6, letterSpacing:"0.08em" }}>
+                  {rifles.length} RIFLE{rifles.length!==1?"S":""} · {rifles.reduce((a,r)=>a+rifleTotalRounds(r),0).toLocaleString()} TOTAL RDS
+                </div>
+              </div>
+
+              {/* Alerts */}
+              {rifles.filter(r=>needsCleaning(r)||needsMoaWarn(r)).map(r=>(
+                <div key={r.id}>
+                  {needsCleaning(r) && (
+                    <div onClick={()=>goRifleDetail(r.id)} style={{ margin:"0 22px 8px", background:T.amberDim, border:"1px solid rgba(245,158,11,0.3)", borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+                      <span style={{ fontSize:16 }}>🧹</span>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontFamily:T.mono, fontSize:11, fontWeight:700, color:T.amber, letterSpacing:"0.08em" }}>CLEAN BARREL — {r.name.toUpperCase()}</div>
+                        <div style={{ fontFamily:T.mono, fontSize:10, color:"#92681a", marginTop:2 }}>{r.roundsSinceClean} RDS SINCE LAST CLEAN</div>
+                      </div>
+                      <span style={{ color:T.amber }}>›</span>
+                    </div>
+                  )}
+                  {needsMoaWarn(r) && (
+                    <div onClick={()=>goRifleDetail(r.id)} style={{ margin:"0 22px 8px", background:T.redDim, border:"1px solid rgba(239,68,68,0.3)", borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+                      <span style={{ fontSize:16 }}>🎯</span>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontFamily:T.mono, fontSize:11, fontWeight:700, color:T.red, letterSpacing:"0.08em" }}>ACCURACY ALERT — {r.name.toUpperCase()}</div>
+                        <div style={{ fontFamily:T.mono, fontSize:10, color:"#993333", marginTop:2 }}>LAST GROUP {latestMoa(r)} MOA · THRESHOLD {r.moaThreshold} MOA</div>
+                      </div>
+                      <span style={{ color:T.red }}>›</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Rifle cards */}
+              <div style={{ padding:"0 22px", display:"flex", flexDirection:"column", gap:10 }}>
+                {rifles.length === 0 && (
+                  <div style={{ textAlign:"center", padding:"60px 20px 30px", position:"relative" }}>
+                    <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
+                      <Crosshair size={100} opacity={0.12} />
+                    </div>
+                    <div style={{ fontFamily:T.display, fontSize:26, color:T.textDim, letterSpacing:"0.1em" }}>NO RIFLES YET</div>
+                    <div style={{ fontFamily:T.mono, fontSize:11, color:T.textDim, marginTop:8, letterSpacing:"0.08em" }}>ADD YOUR FIRST TARGET RIFLE</div>
+                  </div>
+                )}
+                {rifles.map(r => {
+                  const dirty   = needsCleaning(r);
+                  const moaWarn = needsMoaWarn(r);
+                  const total   = rifleTotalRounds(r);
+                  const pct     = cleanPct(r);
+                  const lMoa    = latestMoa(r);
+                  const bMoa    = bestMoa(r);
+                  const alertColor = moaWarn ? T.red : dirty ? T.amber : T.gold;
+                  return (
+                    <div key={r.id} onClick={()=>goRifleDetail(r.id)} style={{ background:T.surface, border:`1px solid ${moaWarn?"rgba(239,68,68,0.4)":dirty?"rgba(245,158,11,0.35)":T.border}`, borderRadius:14, padding:"16px 18px", cursor:"pointer", position:"relative", overflow:"hidden" }}>
+                      <div style={{ position:"absolute", top:0, left:0, width:3, height:"100%", background:`linear-gradient(180deg,${alertColor},transparent)`, borderRadius:"14px 0 0 14px" }} />
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginLeft:8 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontFamily:T.display, fontSize:22, color:T.text, letterSpacing:"0.06em", lineHeight:1.1 }}>{r.name.toUpperCase()}</div>
+                          {r.serial  && <div style={{ fontFamily:T.mono, fontSize:10, color:T.goldDim, marginTop:4, letterSpacing:"0.12em" }}>S/N {r.serial}</div>}
+                          {r.caliber && <div style={{ fontFamily:T.mono, fontSize:11, color:T.textMid, marginTop:3 }}>{r.caliber}</div>}
+                          <div style={{ display:"flex", gap:8, marginTop:6, flexWrap:"wrap" }}>
+                            {lMoa != null && <MoaBadge moa={lMoa} threshold={r.moaThreshold} />}
+                          </div>
+                        </div>
+                        <div style={{ textAlign:"right" }}>
+                          <div style={{ fontFamily:T.display, fontSize:34, color:T.gold, letterSpacing:"0.04em", lineHeight:1 }}>{total.toLocaleString()}</div>
+                          <div style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, letterSpacing:"0.12em", marginTop:2 }}>TOTAL RDS</div>
+                        </div>
+                      </div>
+
+                      {/* MOA threshold bar */}
+                      {r.moaThreshold && lMoa != null && (
+                        <div style={{ marginLeft:8, marginTop:10 }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                            <span style={{ fontFamily:T.mono, fontSize:9, color:moaWarn?T.red:T.textDim, letterSpacing:"0.1em" }}>
+                              {moaWarn ? "⚠ ACCURACY DEGRADED" : `BEST ${bMoa} · LAST ${lMoa} MOA`}
+                            </span>
+                            <span style={{ fontFamily:T.mono, fontSize:9, color:T.textDim }}>THRESH {r.moaThreshold}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {r.cleanInterval && (
+                        <div style={{ marginLeft:8, marginTop:8 }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                            <span style={{ fontFamily:T.mono, fontSize:9, color:dirty?T.amber:T.textDim, letterSpacing:"0.1em" }}>
+                              {dirty ? "⚠ CLEAN NEEDED" : `${r.roundsSinceClean}/${r.cleanInterval} SINCE CLEAN`}
+                            </span>
+                            <span style={{ fontFamily:T.mono, fontSize:9, color:T.textDim }}>{Math.round(pct)}%</span>
+                          </div>
+                          <div style={{ height:3, background:T.card, borderRadius:2, overflow:"hidden" }}>
+                            <div style={{ height:"100%", width:`${pct}%`, background:pct>=100?T.amber:pct>75?"#f97316":T.gold, borderRadius:2 }} />
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ display:"flex", justifyContent:"space-between", marginTop:12, marginLeft:8, paddingTop:10, borderTop:`1px solid ${T.border}` }}>
+                        <span style={{ fontFamily:T.mono, fontSize:9, color:T.textDim }}>ADDED {r.created.toUpperCase()}</span>
+                        <span style={{ fontFamily:T.mono, fontSize:9, color:T.textDim }}>{r.sessions.length} SESSION{r.sessions.length!==1?"S":""} ›</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ padding:"20px 22px 0" }}>
+                <button onClick={goNewRifle} style={{ width:"100%", padding:"17px", background:`linear-gradient(135deg,${T.gold},#9d6f2a)`, border:"none", borderRadius:12, color:"#0c0c0d", fontSize:13, fontWeight:700, fontFamily:T.mono, letterSpacing:"0.15em", cursor:"pointer" }}>
+                  + ADD RIFLE
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ╔══════════════════ NEW RIFLE ══════════════════════╗ */}
+          {view === "newRifle" && (
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:14, padding:"28px 22px 22px" }}>
+                <BackBtn label="← RIFLES" to={goRifles} />
+                <div style={{ fontFamily:T.display, fontSize:28, color:T.text, letterSpacing:"0.06em" }}>NEW RIFLE</div>
+              </div>
+              <div style={{ padding:"0 22px", display:"flex", flexDirection:"column", gap:16 }}>
+                <div><Label>Rifle Name *</Label><Input value={rifleForm.name} onChange={e=>setRifleForm({...rifleForm,name:e.target.value})} placeholder="e.g. Remington 700 LR" /></div>
+                <div><Label>Serial Number</Label><Input value={rifleForm.serial} onChange={e=>setRifleForm({...rifleForm,serial:e.target.value})} placeholder="e.g. US12345678" style={{ fontFamily:T.mono, letterSpacing:"0.06em" }} /></div>
+                <div><Label>Caliber</Label><Input value={rifleForm.caliber} onChange={e=>setRifleForm({...rifleForm,caliber:e.target.value})} placeholder="e.g. .308 Win, 6.5 Creedmoor" /></div>
+
+                {/* Barrel clean */}
+                <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderBottom:`1px solid ${T.border}`, background:T.amberDim }}>
+                    <span style={{ fontSize:14 }}>🧹</span>
+                    <span style={{ fontFamily:T.mono, fontSize:10, color:T.amber, letterSpacing:"0.14em", textTransform:"uppercase", fontWeight:700 }}>Barrel Clean Reminder</span>
+                  </div>
+                  <div style={{ padding:"14px 14px 16px" }}>
+                    <Label>Alert after every X rounds</Label>
+                    <Input value={rifleForm.cleanInterval} onChange={e=>setRifleForm({...rifleForm,cleanInterval:e.target.value})} placeholder="e.g. 200 (optional)" type="number" style={{ fontFamily:T.mono }} />
+                  </div>
+                </div>
+
+                {/* MOA threshold */}
+                <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderBottom:`1px solid ${T.border}`, background:T.redDim }}>
+                    <span style={{ fontSize:14 }}>🎯</span>
+                    <span style={{ fontFamily:T.mono, fontSize:10, color:T.red, letterSpacing:"0.14em", textTransform:"uppercase", fontWeight:700 }}>Accuracy / Shot-Out Warning</span>
+                  </div>
+                  <div style={{ padding:"14px 14px 16px" }}>
+                    <Label>Warn if group exceeds X MOA</Label>
+                    <Input value={rifleForm.moaThreshold} onChange={e=>setRifleForm({...rifleForm,moaThreshold:e.target.value})} placeholder="e.g. 1.5 (optional)" type="number" step="0.1" style={{ fontFamily:T.mono }} />
+                    <div style={{ fontFamily:T.mono, fontSize:10, color:T.textDim, marginTop:6, letterSpacing:"0.06em" }}>If a logged group exceeds this MOA, you'll be warned that the barrel's accuracy may have changed or the barrel may be shot-out</div>
+                  </div>
+                </div>
+
+                <button onClick={createRifle} disabled={!rifleForm.name} style={{ width:"100%", padding:"17px", background:!rifleForm.name?T.card:`linear-gradient(135deg,${T.gold},#9d6f2a)`, border:`1px solid ${!rifleForm.name?T.border:"transparent"}`, borderRadius:12, color:!rifleForm.name?T.textDim:"#0c0c0d", fontSize:13, fontWeight:700, fontFamily:T.mono, letterSpacing:"0.15em", cursor:!rifleForm.name?"not-allowed":"pointer", marginTop:4, marginBottom:8 }}>
+                  CREATE RIFLE PROFILE
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ╔══════════════════ RIFLE DETAIL ═══════════════════╗ */}
+          {view === "rifleDetail" && selectedRifle && (() => {
+            const r     = selectedRifle;
+            const dirty = needsCleaning(r);
+            const moaWarn = needsMoaWarn(r);
+            const total = rifleTotalRounds(r);
+            const lMoa  = latestMoa(r);
+            const bMoa  = bestMoa(r);
+            const allEntries = allMoaEntries(r);
+            return (
+              <div>
+                <div style={{ padding:"28px 22px 0" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+                    <BackBtn label="← RIFLES" to={goRifles} />
+                    <button onClick={()=>deleteRifle(r.id)} style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:8, color:"#f87171", fontSize:11, fontFamily:T.mono, letterSpacing:"0.1em", padding:"7px 14px", cursor:"pointer" }}>DELETE</button>
+                  </div>
+                  <div style={{ fontFamily:T.mono, fontSize:10, color:T.goldDim, letterSpacing:"0.2em", marginBottom:6 }}>Target Rifle</div>
+                  <div style={{ fontFamily:T.display, fontSize:38, color:T.text, letterSpacing:"0.05em", lineHeight:1 }}>{r.name.toUpperCase()}</div>
+                  {r.serial  && <div style={{ fontFamily:T.mono, fontSize:11, color:T.goldDim, marginTop:6, letterSpacing:"0.14em" }}>S/N {r.serial}</div>}
+                  {r.caliber && <div style={{ fontFamily:T.mono, fontSize:12, color:T.textMid, marginTop:4 }}>{r.caliber}</div>}
+                  <div style={{ fontFamily:T.mono, fontSize:10, color:T.textDim, marginTop:4 }}>ADDED {r.created.toUpperCase()}</div>
+                </div>
+
+                {/* 🎯 Accuracy / Shot-out alert */}
+                {moaWarn && (
+                  <div style={{ margin:"18px 22px 0", background:T.redDim, border:"1px solid rgba(239,68,68,0.4)", borderRadius:14, padding:"18px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
+                      <span style={{ fontSize:26 }}>🎯</span>
+                      <div>
+                        <div style={{ fontFamily:T.display, fontSize:20, color:T.red, letterSpacing:"0.06em" }}>ACCURACY DEGRADED</div>
+                        <div style={{ fontFamily:T.mono, fontSize:10, color:"#993333", marginTop:4, letterSpacing:"0.08em" }}>
+                          LAST GROUP: {lMoa} MOA · THRESHOLD: {r.moaThreshold} MOA
+                        </div>
+                        <div style={{ fontFamily:T.mono, fontSize:10, color:"#993333", marginTop:2 }}>
+                          BARREL MAY BE SHOT-OUT OR ACCURACY HAS CHANGED
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={()=>setMoaDismissed(prev=>({...prev,[r.id]:true}))} style={{ width:"100%", padding:"12px", background:"rgba(239,68,68,0.2)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:10, color:T.red, fontSize:11, fontWeight:700, fontFamily:T.mono, letterSpacing:"0.12em", cursor:"pointer" }}>
+                      DISMISS WARNING
+                    </button>
+                  </div>
+                )}
+
+                {/* 🧹 Clean alert */}
+                {dirty && (
+                  <div style={{ margin:"12px 22px 0", background:T.amberDim, border:"1px solid rgba(245,158,11,0.35)", borderRadius:14, padding:"18px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
+                      <span style={{ fontSize:24 }}>🧹</span>
+                      <div>
+                        <div style={{ fontFamily:T.display, fontSize:20, color:T.amber, letterSpacing:"0.06em" }}>CLEAN YOUR BARREL</div>
+                        <div style={{ fontFamily:T.mono, fontSize:10, color:"#92681a", marginTop:4 }}>{r.roundsSinceClean} RDS · THRESHOLD {r.cleanInterval}</div>
+                      </div>
+                    </div>
+                    <button onClick={()=>markCleaned(r.id)} style={{ width:"100%", padding:"13px", background:T.amber, border:"none", borderRadius:10, color:"#0c0c0d", fontSize:12, fontWeight:700, fontFamily:T.mono, letterSpacing:"0.14em", cursor:"pointer" }}>✓ MARK AS CLEANED</button>
+                  </div>
+                )}
+
+                {/* Stats */}
+                <div style={{ display:"flex", gap:8, margin:"18px 22px 0" }}>
+                  {[
+                    { label:"Total Rds",   value:total.toLocaleString(), color:T.gold, glow:"rgba(201,169,110,0.08)" },
+                    { label:"Sessions",    value:r.sessions.length,      color:T.blue, glow:"rgba(96,165,250,0.06)"  },
+                    { label:"Best MOA",    value:bMoa!=null?`${bMoa}`:"—", color:T.green,glow:"rgba(74,222,128,0.06)" },
+                  ].map((c,i)=>(
+                    <div key={i} style={{ flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 10px", textAlign:"center", position:"relative", overflow:"hidden" }}>
+                      <div style={{ position:"absolute", inset:0, background:`radial-gradient(circle at 50% 0%,${c.glow},transparent 70%)` }} />
+                      <div style={{ fontFamily:T.display, fontSize:26, color:c.color, lineHeight:1, position:"relative" }}>{c.value}</div>
+                      <div style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, letterSpacing:"0.12em", textTransform:"uppercase", marginTop:4, position:"relative" }}>{c.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* MOA sparkline across all sessions */}
+                {allEntries.length >= 2 && (
+                  <div style={{ margin:"12px 22px 0", background:T.surface, border:`1px solid ${T.border}`, borderRadius:14, padding:"16px 18px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:12 }}>
+                      <span style={{ fontFamily:T.mono, fontSize:11, color:T.textMid, letterSpacing:"0.08em" }}>MOA TREND — ALL SESSIONS</span>
+                      {r.moaThreshold && <span style={{ fontFamily:T.mono, fontSize:10, color:T.red, opacity:0.7 }}>— {r.moaThreshold} THRESHOLD</span>}
+                    </div>
+                    <MoaSparkline entries={allEntries} threshold={r.moaThreshold} width={296} height={60} />
+                  </div>
+                )}
+
+                {/* Clean tracker */}
+                {r.cleanInterval && (
+                  <div style={{ margin:"12px 22px 0", background:T.surface, border:`1px solid ${dirty?"rgba(245,158,11,0.3)":T.border}`, borderRadius:14, padding:"16px 18px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+                      <span style={{ fontFamily:T.mono, fontSize:11, fontWeight:700, color:dirty?T.amber:T.textMid }}>🧹 BARREL CLEAN</span>
+                      <span style={{ fontFamily:T.mono, fontSize:11, color:T.textDim }}>{r.roundsSinceClean} / {r.cleanInterval} RDS</span>
+                    </div>
+                    <div style={{ height:5, background:T.card, borderRadius:3, overflow:"hidden" }}>
+                      <div style={{ height:"100%", width:`${cleanPct(r)}%`, background:cleanPct(r)>=100?T.amber:cleanPct(r)>75?"#f97316":T.gold, borderRadius:3, transition:"width 0.4s" }} />
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginTop:8 }}>
+                      <span style={{ fontFamily:T.mono, fontSize:10, color:T.textDim }}>{dirty?"⚠ CLEAN REQUIRED":`${r.cleanInterval-r.roundsSinceClean} RDS UNTIL NEXT CLEAN`}</span>
+                      <span style={{ fontFamily:T.mono, fontSize:10, color:T.textDim }}>{Math.round(cleanPct(r))}%</span>
+                    </div>
+                    {!dirty && <button onClick={()=>markCleaned(r.id)} style={{ marginTop:10, width:"100%", padding:"10px", background:"transparent", border:`1px solid ${T.border}`, borderRadius:8, color:T.textMid, fontSize:11, fontFamily:T.mono, letterSpacing:"0.1em", cursor:"pointer" }}>MARK AS CLEANED NOW</button>}
+                  </div>
+                )}
+
+                {/* Sessions */}
+                <SectionHeader>Sessions</SectionHeader>
+                <div style={{ padding:"0 22px", display:"flex", flexDirection:"column", gap:10 }}>
+                  {r.sessions.length === 0 && (
+                    <div style={{ textAlign:"center", padding:"24px 20px", background:T.surface, border:`1px solid ${T.border}`, borderRadius:14 }}>
+                      <div style={{ fontFamily:T.mono, fontSize:11, color:T.textDim, letterSpacing:"0.08em" }}>NO SESSIONS YET</div>
+                    </div>
+                  )}
+                  {r.sessions.map(s => {
+                    const lastMoa = s.rangeEntries.filter(e=>e.moa!=null).slice(-1)[0]?.moa;
+                    const overMoa = r.moaThreshold && lastMoa != null && lastMoa > r.moaThreshold;
+                    return (
+                      <div key={s.id} onClick={()=>goSessionDetail(s.id)} style={{ background:T.surface, border:`1px solid ${overMoa?"rgba(239,68,68,0.35)":T.border}`, borderRadius:14, padding:"15px 18px", cursor:"pointer", position:"relative", overflow:"hidden" }}>
+                        <div style={{ position:"absolute", top:0, left:0, width:3, height:"100%", background:`linear-gradient(180deg,${overMoa?T.red:T.blue},transparent)`, borderRadius:"14px 0 0 14px" }} />
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginLeft:8 }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontFamily:T.display, fontSize:18, color:T.text, letterSpacing:"0.06em" }}>{s.brand.toUpperCase()}</div>
+                            <div style={{ fontFamily:T.mono, fontSize:11, color:T.textMid, marginTop:3 }}>{s.factorySpec || s.projectile}</div>
+                            <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:6 }}>
+                              {lastMoa != null && <MoaBadge moa={lastMoa} threshold={r.moaThreshold} />}
+                            </div>
+                          </div>
+                          <div style={{ textAlign:"right" }}>
+                            <div style={{ fontFamily:T.display, fontSize:28, color:T.blue, lineHeight:1 }}>{s.shots.toLocaleString()}</div>
+                            <div style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, marginTop:2 }}>RDS</div>
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginTop:10, marginLeft:8, paddingTop:8, borderTop:`1px solid ${T.border}` }}>
+                          <span style={{ fontFamily:T.mono, fontSize:9, color:T.textDim }}>{s.created}</span>
+                          <span style={{ fontFamily:T.mono, fontSize:9, color:T.textDim }}>{s.rangeEntries.length} ENTR{s.rangeEntries.length!==1?"IES":"Y"} ›</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ padding:"16px 22px 0" }}>
+                  <button onClick={goNewSession} style={{ width:"100%", padding:"16px", background:T.goldGlow, border:`1px solid ${T.goldDim}`, borderRadius:12, color:T.gold, fontSize:12, fontWeight:700, fontFamily:T.mono, letterSpacing:"0.14em", cursor:"pointer" }}>
+                    + ADD SESSION
+                  </button>
+                </div>
+
+                {r.cleanHistory.length > 0 && (
+                  <div style={{ margin:"20px 22px 0" }}>
+                    <Label>Clean History</Label>
+                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                      {[...r.cleanHistory].reverse().map((c,i)=>(
+                        <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:"11px 16px" }}>
+                          <span style={{ fontFamily:T.mono, fontSize:11, color:T.textMid }}>🧹 {c.date.toUpperCase()}</span>
+                          <span style={{ fontFamily:T.mono, fontSize:11, color:T.amber, fontWeight:700 }}>@ {c.atRound.toLocaleString()} RDS</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* ╔══════════════════ NEW SESSION ════════════════════╗ */}
+          {view === "newSession" && selectedRifle && (
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:14, padding:"28px 22px 22px" }}>
+                <BackBtn label="← RIFLE" to={()=>setView("rifleDetail")} />
+                <div>
+                  <div style={{ fontFamily:T.display, fontSize:26, color:T.text, letterSpacing:"0.06em" }}>NEW SESSION</div>
+                  <div style={{ fontFamily:T.mono, fontSize:10, color:T.goldDim, letterSpacing:"0.12em" }}>{selectedRifle.name.toUpperCase()}</div>
+                </div>
+              </div>
+              <div style={{ padding:"0 22px", display:"flex", flexDirection:"column", gap:16 }}>
+                <div><Label>Ammunition Brand *</Label>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>{BRANDS.map(b=><Chip key={b} label={b} active={sessionForm.brand===b} onClick={()=>setSessionForm({...sessionForm,brand:b})} />)}</div>
+                </div>
+                <div>
+                  <Label>Projectile Type *</Label>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:12 }}>{PROJECTILES.map(p=><Chip key={p} label={p} active={sessionForm.projectile===p} onClick={()=>setSessionForm({...sessionForm,projectile:p})} />)}</div>
+                  <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, overflow:"hidden" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 14px", borderBottom:`1px solid ${T.border}`, background:"rgba(201,169,110,0.05)" }}>
+                      <div style={{ width:1, height:14, background:T.goldDim }} />
+                      <span style={{ fontFamily:T.mono, fontSize:10, color:T.goldDim, letterSpacing:"0.14em", textTransform:"uppercase" }}>Factory Spec / Load Detail</span>
+                    </div>
+                    <input value={sessionForm.factorySpec} onChange={e=>setSessionForm({...sessionForm,factorySpec:e.target.value})} placeholder="e.g. 168gr SMK · Gold Medal Match · Lot #A4421" style={{ width:"100%", background:"transparent", border:"none", padding:"12px 14px", color:T.text, fontSize:13, fontFamily:T.mono, outline:"none", boxSizing:"border-box", letterSpacing:"0.03em" }} />
+                  </div>
+                </div>
+                <div><Label>Rounds Fired</Label><Input value={sessionForm.shots} onChange={e=>setSessionForm({...sessionForm,shots:e.target.value})} placeholder="0" type="number" style={{ fontFamily:T.mono }} /></div>
+                <div><Label>Conditions</Label><Textarea value={sessionForm.conditions} onChange={e=>setSessionForm({...sessionForm,conditions:e.target.value})} placeholder="Range setup, target distance, lighting, surface..." rows={3} /></div>
+                <div><Label>Environmentals</Label><Textarea value={sessionForm.environmentals} onChange={e=>setSessionForm({...sessionForm,environmentals:e.target.value})} placeholder="Temperature, wind, humidity, altitude..." rows={3} /></div>
+                <button onClick={createSession} disabled={!sessionForm.brand||!sessionForm.projectile} style={{ width:"100%", padding:"17px", background:(!sessionForm.brand||!sessionForm.projectile)?T.card:`linear-gradient(135deg,${T.gold},#9d6f2a)`, border:`1px solid ${(!sessionForm.brand||!sessionForm.projectile)?T.border:"transparent"}`, borderRadius:12, color:(!sessionForm.brand||!sessionForm.projectile)?T.textDim:"#0c0c0d", fontSize:13, fontWeight:700, fontFamily:T.mono, letterSpacing:"0.15em", cursor:(!sessionForm.brand||!sessionForm.projectile)?"not-allowed":"pointer", marginTop:4, marginBottom:8 }}>
+                  SAVE SESSION
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ╔══════════════════ SESSION DETAIL ═════════════════╗ */}
+          {view === "sessionDetail" && selectedRifle && selectedSession && (() => {
+            const r = selectedRifle;
+            const s = selectedSession;
+            const sessionTotal = s.rangeEntries.reduce((a,e)=>a+e.count,0);
+            const moaEntries   = s.rangeEntries.filter(e=>e.moa!=null);
+            const lastMoa      = moaEntries.slice(-1)[0]?.moa;
+            const bestSessionMoa = moaEntries.length ? Math.min(...moaEntries.map(e=>e.moa)) : null;
+            const overMoa = r.moaThreshold && lastMoa != null && lastMoa > r.moaThreshold;
+            return (
+              <div>
+                <div style={{ padding:"28px 22px 0" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+                    <BackBtn label="← SESSIONS" to={()=>setView("rifleDetail")} />
+                    <button onClick={()=>deleteSession(s.id)} style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:8, color:"#f87171", fontSize:11, fontFamily:T.mono, letterSpacing:"0.1em", padding:"7px 14px", cursor:"pointer" }}>DELETE</button>
+                  </div>
+                  <div style={{ fontFamily:T.mono, fontSize:10, color:T.goldDim, letterSpacing:"0.2em", marginBottom:6 }}>
+                    {r.name.toUpperCase()}{r.caliber?` · ${r.caliber}`:""}
+                  </div>
+                  <div style={{ fontFamily:T.display, fontSize:34, color:T.text, letterSpacing:"0.05em", lineHeight:1 }}>{s.brand.toUpperCase()}</div>
+                  {s.factorySpec && <div style={{ fontFamily:T.mono, fontSize:12, color:T.gold, marginTop:6, letterSpacing:"0.06em" }}>{s.factorySpec}</div>}
+                  <div style={{ fontFamily:T.mono, fontSize:10, color:T.textDim, marginTop:4 }}>SESSION {s.created.toUpperCase()}</div>
+                </div>
+
+                {/* Accuracy warning for this session */}
+                {overMoa && (
+                  <div style={{ margin:"18px 22px 0", background:T.redDim, border:"1px solid rgba(239,68,68,0.4)", borderRadius:14, padding:"14px 18px", display:"flex", alignItems:"center", gap:10 }}>
+                    <span style={{ fontSize:20 }}>⚠</span>
+                    <div>
+                      <div style={{ fontFamily:T.mono, fontSize:11, fontWeight:700, color:T.red, letterSpacing:"0.08em" }}>GROUP EXCEEDS ACCURACY THRESHOLD</div>
+                      <div style={{ fontFamily:T.mono, fontSize:10, color:"#993333", marginTop:3 }}>LAST: {lastMoa} MOA · THRESHOLD: {r.moaThreshold} MOA — BARREL MAY BE SHOT-OUT</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Round counters */}
+                <div style={{ display:"flex", gap:10, margin:"18px 22px 0" }}>
+                  {[
+                    { label:"Total Rounds",   value:s.shots.toLocaleString(),                color:T.gold, glow:"rgba(201,169,110,0.08)" },
+                    { label:"From Entries",   value:sessionTotal.toLocaleString(),            color:T.blue, glow:"rgba(96,165,250,0.06)"  },
+                    { label:"Best Group",     value:bestSessionMoa!=null?`${bestSessionMoa}`:"—", color:T.green,glow:"rgba(74,222,128,0.06)" },
+                  ].map((c,i)=>(
+                    <div key={i} style={{ flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 10px", textAlign:"center", position:"relative", overflow:"hidden" }}>
+                      <div style={{ position:"absolute", inset:0, background:`radial-gradient(circle at 50% 0%,${c.glow},transparent 70%)` }} />
+                      <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)" }}><Crosshair size={60} opacity={0.04} /></div>
+                      <div style={{ fontFamily:T.display, fontSize:24, color:c.color, lineHeight:1, position:"relative" }}>{c.value}</div>
+                      <div style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, letterSpacing:"0.1em", textTransform:"uppercase", marginTop:4, position:"relative" }}>{c.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* MOA sparkline for this session */}
+                {moaEntries.length >= 2 && (
+                  <div style={{ margin:"12px 22px 0", background:T.surface, border:`1px solid ${T.border}`, borderRadius:14, padding:"16px 18px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:12 }}>
+                      <span style={{ fontFamily:T.mono, fontSize:11, color:T.textMid, letterSpacing:"0.08em" }}>GROUP MOA — THIS SESSION</span>
+                      {r.moaThreshold && <span style={{ fontFamily:T.mono, fontSize:10, color:T.red, opacity:0.7 }}>— {r.moaThreshold} THRESHOLD</span>}
+                    </div>
+                    <MoaSparkline entries={s.rangeEntries} threshold={r.moaThreshold} width={296} height={60} />
+                  </div>
+                )}
+
+                {/* Log range entry */}
+                <div style={{ margin:"12px 22px 0", background:T.surface, border:`1px solid ${T.border}`, borderRadius:14, overflow:"hidden" }}>
+                  {addingEntry ? (
+                    <div style={{ padding:"14px 16px" }}>
+                      <div style={{ fontFamily:T.mono, fontSize:10, color:T.textMid, letterSpacing:"0.12em", marginBottom:10 }}>LOG RANGE ENTRY</div>
+                      <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, marginBottom:5, letterSpacing:"0.1em" }}>ROUNDS FIRED *</div>
+                          <input value={entryShots} onChange={e=>setEntryShots(e.target.value)} placeholder="e.g. 20" type="number" autoFocus
+                            style={{ width:"100%", background:T.card, border:`1px solid ${T.border}`, borderRadius:8, padding:"11px 12px", color:T.text, fontSize:14, fontFamily:T.mono, outline:"none", boxSizing:"border-box" }} />
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, marginBottom:5, letterSpacing:"0.1em" }}>GROUP SIZE (MOA)</div>
+                          <input value={entryMoa} onChange={e=>setEntryMoa(e.target.value)} placeholder="e.g. 0.8" type="number" step="0.1"
+                            style={{ width:"100%", background:T.card, border:`1px solid ${T.border}`, borderRadius:8, padding:"11px 12px", color:T.text, fontSize:14, fontFamily:T.mono, outline:"none", boxSizing:"border-box" }} />
+                        </div>
+                      </div>
+                      {r.moaThreshold && entryMoa && parseFloat(entryMoa) > r.moaThreshold && (
+                        <div style={{ background:T.redDim, border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"8px 12px", marginBottom:10 }}>
+                          <span style={{ fontFamily:T.mono, fontSize:10, color:T.red }}>⚠ {entryMoa} MOA EXCEEDS YOUR {r.moaThreshold} MOA THRESHOLD</span>
+                        </div>
+                      )}
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button onClick={()=>addRangeEntry(r.id,s.id)} style={{ flex:1, background:T.gold, border:"none", borderRadius:8, color:"#0c0c0d", fontSize:12, fontWeight:700, fontFamily:T.mono, letterSpacing:"0.1em", padding:"12px", cursor:"pointer" }}>LOG ENTRY</button>
+                        <button onClick={()=>{setAddingEntry(false);setEntryShots("");setEntryMoa("");}} style={{ background:"transparent", border:`1px solid ${T.border}`, borderRadius:8, color:T.textMid, fontSize:14, padding:"12px 14px", cursor:"pointer" }}>✕</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={()=>setAddingEntry(true)} style={{ width:"100%", background:T.goldGlow, border:"none", color:T.gold, fontSize:12, fontWeight:700, fontFamily:T.mono, letterSpacing:"0.12em", padding:"14px", cursor:"pointer" }}>
+                      + LOG RANGE ENTRY
+                    </button>
+                  )}
+                </div>
+
+                {/* Load details */}
+                <div style={{ margin:"16px 22px 0", background:T.surface, border:`1px solid ${T.border}`, borderRadius:14, overflow:"hidden" }}>
+                  {[
+                    { label:"Brand",      value:s.brand },
+                    { label:"Projectile", value:s.projectile },
+                    s.factorySpec && { label:"Factory Spec", value:s.factorySpec, accent:T.gold },
+                    { label:"Entries",    value:s.rangeEntries.length },
+                    r.moaThreshold && { label:"MOA Threshold", value:`${r.moaThreshold} MOA`, accent:T.red },
+                  ].filter(Boolean).map((row,i,arr)=>(
+                    <div key={i}>
+                      <DetailRow label={row.label} value={row.value} accent={row.accent} />
+                      {i<arr.length-1&&<Divider/>}
+                    </div>
+                  ))}
+                </div>
+
+                {s.conditions && (
+                  <div style={{ margin:"12px 22px 0", background:T.surface, border:`1px solid ${T.border}`, borderRadius:14, padding:"16px 18px" }}>
+                    <Label>Conditions</Label>
+                    <div style={{ color:T.textMid, fontSize:14, lineHeight:1.6 }}>{s.conditions}</div>
+                  </div>
+                )}
+                {s.environmentals && (
+                  <div style={{ margin:"12px 22px 0", background:T.surface, border:`1px solid ${T.border}`, borderRadius:14, padding:"16px 18px" }}>
+                    <Label>Environmentals</Label>
+                    <div style={{ color:T.textMid, fontSize:14, lineHeight:1.6 }}>{s.environmentals}</div>
+                  </div>
+                )}
+
+                {/* Range entries */}
+                {s.rangeEntries.length > 0 && (
+                  <div style={{ margin:"16px 22px 0" }}>
+                    <Label>Range Entries</Label>
+                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                      {[...s.rangeEntries].reverse().map((e,i)=>(
+                        <div key={i} style={{ background:T.surface, border:`1px solid ${r.moaThreshold&&e.moa!=null&&e.moa>r.moaThreshold?"rgba(239,68,68,0.3)":T.border}`, borderRadius:12, padding:"12px 16px" }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                            <span style={{ fontFamily:T.mono, fontSize:11, color:T.textMid }}>{e.date.toUpperCase()}</span>
+                            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                              {e.moa != null && <MoaBadge moa={e.moa} threshold={r.moaThreshold} />}
+                              <span style={{ fontFamily:T.display, fontSize:18, color:T.gold, letterSpacing:"0.06em" }}>+{e.count}</span>
+                            </div>
+                          </div>
+                          <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, paddingTop:6, borderTop:`1px solid ${T.border}` }}>
+                            <span style={{ fontFamily:T.mono, fontSize:10, color:T.textDim }}>RUNNING TOTAL</span>
+                            <span style={{ fontFamily:T.mono, fontSize:10, color:T.textDim, fontWeight:700 }}>{e.runningTotal?.toLocaleString() ?? "—"} RDS</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+        </div>
+
+        {/* Home indicator */}
+        <div style={{ position:"relative", zIndex:1, height:34, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div style={{ width:100, height:4, background:T.border, borderRadius:2 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
